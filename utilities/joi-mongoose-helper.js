@@ -58,6 +58,20 @@ internals.generateJoiReadModel = function (model, Log) {
 
       var associationModel = Joi.object();
 
+      var idModel = {};
+
+      try {
+        idModel = internals.generateJoiModelFromFieldType(mongoose.model(association.model).schema.tree._id, Log);
+      }
+      catch (error) {
+        // EXPL: this simplifies testing
+        if (error.name === 'MissingSchemaError') {
+          idModel = internals.joiObjectId();
+        }
+        else {
+          throw error;
+        }
+      }
 
       if (association.type === "MANY_MANY") {
         if (association.linkingModel) {
@@ -65,7 +79,7 @@ internals.generateJoiReadModel = function (model, Log) {
         }
         var associationBase = {};
         associationBase[association.model] = Joi.object();
-        associationBase._id = internals.joiObjectId();
+        associationBase._id = idModel;
         //EXPL: remove the key for the current model
         if (associationModel._inner.children) {
           associationModel._inner.children = associationModel._inner.children.filter(function(key) {
@@ -78,7 +92,7 @@ internals.generateJoiReadModel = function (model, Log) {
         associationModel = Joi.alternatives().try(associationModel, Joi.object());
       }
       else if (association.type === "_MANY") {
-        associationModel = Joi.alternatives().try(internals.joiObjectId(), Joi.object());
+        associationModel = Joi.alternatives().try(idModel, Joi.object());
       }
 
       associationModel = associationModel.label(model.modelName + "_" + associationName + "Model");
@@ -211,6 +225,8 @@ internals.generateJoiListQueryModel = function (model, Log) {
 
   var sortableFields = queryHelper.getSortableFields(model, Log);
 
+  var idModel = internals.generateJoiModelFromFieldType(model.schema.tree._id, Log);
+
   if (queryableFields && readableFields) {
     queryModel.$select = Joi.alternatives().try(Joi.array().items(Joi.string().valid(readableFields))
         .description('A list of basic fields to be included in each resource. Valid values include: ' + readableFields.toString().replace(/,/g,', ')), Joi.string().valid(readableFields));
@@ -227,8 +243,8 @@ internals.generateJoiListQueryModel = function (model, Log) {
         .description('A set of fields to sort by. Including field name indicates it should be sorted ascending, while prepending ' +
             '\'-\' indicates descending. The default sort direction is \'ascending\' (lowest value to highest value). Listing multiple' +
             'fields prioritizes the sort starting with the first field listed. Valid values include: ' + sortableFields.toString().replace(/,/g,', ')), Joi.string().valid(sortableFields));
-    queryModel.$exclude = Joi.alternatives().try(Joi.array().items(internals.joiObjectId())
-        .description('A list of objectIds to exclude in the result.'), internals.joiObjectId());
+    queryModel.$exclude = Joi.alternatives().try(Joi.array().items(idModel)
+        .description('A list of ids to exclude in the result.'), idModel);
     queryModel.$count = Joi.boolean()
         .description('If set to true, only a count of the query results will be returned.');
     if (config.enableWhereQueries) {

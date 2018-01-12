@@ -1,7 +1,6 @@
 'use strict';
 
 var Joi = require('joi');
-Joi.objectId = require('joi-objectid')(Joi);
 var _ = require('lodash');
 var assert = require('assert');
 var joiMongooseHelper = require('./joi-mongoose-helper');
@@ -242,6 +241,8 @@ module.exports = function (logger, mongoose, server) {
 
       var readModel = model.readModel || joiMongooseHelper.generateJoiReadModel(model, Log);
 
+      var idModel = joiMongooseHelper.generateJoiModelFromFieldType(model.schema.tree._id, Log);
+
       if (!config.enableResponseValidation) {
         var label =  readModel._flags.label;
         readModel = Joi.alternatives().try(readModel, Joi.any()).label(label);
@@ -292,7 +293,7 @@ module.exports = function (logger, mongoose, server) {
           validate: {
             query: queryModel,
             params: {
-              _id: Joi.objectId().required()
+              _id: idModel.required()
             },
             headers: headersValidation
           },
@@ -511,6 +512,8 @@ module.exports = function (logger, mongoose, server) {
         }
       }
 
+      var idModel = joiMongooseHelper.generateJoiModelFromFieldType(model.schema.tree._id, Log);
+
       var auth = false;
 
       if (config.authStrategy && model.routeOptions.deleteAuth !== false) {
@@ -562,7 +565,7 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', collectionName],
           validate: {
             params: {
-              _id: Joi.objectId().required()
+              _id: idModel.required()
             },
             payload: payloadModel,
             headers: headersValidation
@@ -623,12 +626,14 @@ module.exports = function (logger, mongoose, server) {
 
       var handler = HandlerHelper.generateDeleteHandler(model, options, Log);
 
+      var idModel = joiMongooseHelper.generateJoiModelFromFieldType(model.schema.tree._id, Log);
+
       var payloadModel = null;
       if (config.enableSoftDelete) {
-        payloadModel = Joi.alternatives().try(Joi.array().items(Joi.object({ _id: Joi.objectId(), hardDelete: Joi.bool().default(false) })), Joi.array().items(Joi.objectId()));
+        payloadModel = Joi.alternatives().try(Joi.array().items(Joi.object({ _id: idModel, hardDelete: Joi.bool().default(false) })), Joi.array().items(idModel));
       }
       else {
-        payloadModel = Joi.array().items(Joi.objectId());
+        payloadModel = Joi.array().items(idModel);
       }
 
       if (!config.enablePayloadValidation) {
@@ -758,6 +763,8 @@ module.exports = function (logger, mongoose, server) {
         readModel = Joi.alternatives().try(readModel, Joi.any()).label(label);
       }
 
+      var idModel = joiMongooseHelper.generateJoiModelFromFieldType(model.schema.tree._id, Log);
+
       var auth = false;
 
       if (config.authStrategy && model.routeOptions.updateAuth !== false) {
@@ -816,7 +823,7 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', collectionName],
           validate: {
             params: {
-              _id: Joi.objectId().required()
+              _id: idModel.required()
             },
             payload: updateModel,
             headers: headersValidation
@@ -893,6 +900,9 @@ module.exports = function (logger, mongoose, server) {
         }
       }
 
+      var ownerIdModel = joiMongooseHelper.generateJoiModelFromFieldType(ownerModel.schema.tree._id, Log);
+      var childIdModel = joiMongooseHelper.generateJoiModelFromFieldType(childModel.schema.tree._id, Log);
+
       var auth = false;
 
       if (config.authStrategy && ownerModel.routeOptions.associateAuth !== false) {
@@ -942,8 +952,8 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', associationName, ownerModelName],
           validate: {
             params: {
-              ownerId: Joi.objectId().required(),
-              childId: Joi.objectId().required()
+              ownerId: ownerIdModel.required(),
+              childId: childIdModel.required()
             },
             payload: payloadValidation,
             headers: headersValidation
@@ -1008,6 +1018,9 @@ module.exports = function (logger, mongoose, server) {
 
       var auth = false;
 
+      var ownerIdModel = joiMongooseHelper.generateJoiModelFromFieldType(ownerModel.schema.tree._id, Log);
+      var childIdModel = joiMongooseHelper.generateJoiModelFromFieldType(childModel.schema.tree._id, Log);
+
       if (config.authStrategy && ownerModel.routeOptions.associateAuth !== false) {
         auth = {
           strategy: config.authStrategy
@@ -1055,8 +1068,8 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', associationName, ownerModelName],
           validate: {
             params: {
-              ownerId: Joi.objectId().required(),
-              childId: Joi.objectId().required()
+              ownerId: ownerIdModel.required(),
+              childId: childIdModel.required()
             },
             headers: headersValidation
           },
@@ -1114,6 +1127,9 @@ module.exports = function (logger, mongoose, server) {
 
       var handler = HandlerHelper.generateAssociationAddManyHandler(ownerModel, association, options, Log);
 
+      var ownerIdModel = joiMongooseHelper.generateJoiModelFromFieldType(ownerModel.schema.tree._id, Log);
+      var childIdModel = joiMongooseHelper.generateJoiModelFromFieldType(childModel.schema.tree._id, Log);
+
       var payloadValidation;
       var label = "";
 
@@ -1124,15 +1140,15 @@ module.exports = function (logger, mongoose, server) {
         });
         label =  payloadValidation._flags.label + "_many";
         payloadValidation = payloadValidation.keys({
-          childId: Joi.objectId().description("the " + childModelName + "'s _id")
+          childId: childIdModel.description("the " + childModelName + "'s _id")
         });
         payloadValidation = Joi.array().items(payloadValidation);
 
         payloadValidation = Joi.alternatives().try(payloadValidation,
-            Joi.array().items(Joi.objectId())).label(label || "blank").required();
+            Joi.array().items(childIdModel)).label(label || "blank").required();
       } 
       else {
-        payloadValidation = Joi.array().items(Joi.objectId()).required();
+        payloadValidation = Joi.array().items(childIdModel).required();
       }
 
       if (!config.enablePayloadValidation) {
@@ -1189,7 +1205,7 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', associationName, ownerModelName],
           validate: {
             params: {
-              ownerId: Joi.objectId().required()
+              ownerId: ownerIdModel.required()
             },
             payload: payloadValidation,
             headers: headersValidation
@@ -1248,7 +1264,10 @@ module.exports = function (logger, mongoose, server) {
 
       var handler = HandlerHelper.generateAssociationRemoveManyHandler(ownerModel, association, options, Log);
 
-      var payloadValidation = Joi.array().items(Joi.objectId()).required();
+      var ownerIdModel = joiMongooseHelper.generateJoiModelFromFieldType(ownerModel.schema.tree._id, Log);
+      var childIdModel = joiMongooseHelper.generateJoiModelFromFieldType(childModel.schema.tree._id, Log);
+
+      var payloadValidation = Joi.array().items(childIdModel).required();
 
       payloadValidation = config.enablePayloadValidation ? payloadValidation : Joi.any();
       payloadValidation = payloadValidation.description("An array of _ids to remove.")
@@ -1302,7 +1321,7 @@ module.exports = function (logger, mongoose, server) {
           tags: ['api', associationName, ownerModelName],
           validate: {
             params: {
-              ownerId: Joi.objectId().required()
+              ownerId: ownerIdModel.required()
             },
             payload: payloadValidation,
             headers: headersValidation
@@ -1373,6 +1392,8 @@ module.exports = function (logger, mongoose, server) {
 
       readModel = readModel.label(ownerModelName + "_" + associationName + "ReadModel");
 
+      var ownerIdModel = joiMongooseHelper.generateJoiModelFromFieldType(ownerModel.schema.tree._id, Log);
+
       if (!config.enableResponseValidation) {
         var label =  readModel._flags.label;
         readModel = Joi.alternatives().try(readModel, Joi.any()).label(label);
@@ -1424,7 +1445,7 @@ module.exports = function (logger, mongoose, server) {
           validate: {
             query: queryModel,
             params: {
-              ownerId: Joi.objectId().required()
+              ownerId: ownerIdModel.required()
             },
             headers: headersValidation
           },
